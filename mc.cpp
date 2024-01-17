@@ -396,7 +396,7 @@ int mc() {  // ROOT entrance
 
 int main() {  // g++ entrance
     int num_steps;
-    constexpr int sampling_step = 1;
+    constexpr int sampling_step = 100;
     std::cout << "num_steps: ";
     std::cin >> num_steps;
     Cubic cubic(1e5, 2, 50, 5, 1, 1e-26, 300);
