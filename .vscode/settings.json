@@ -1,8 +1,22 @@
 {
     "cSpell.words": [
+        "accepteds",
+        "arange",
+        "arccos",
         "boldsymbol",
+        "boxs",
         "carlo",
         "Enskog",
-        "tqdm"
+        "pbar",
+        "probs",
+        "ptcs",
+        "tqdm",
+        "xlabel",
+        "ylabel",
+        "ylim",
+        "yscale",
+        "σhat",
+        "σhats",
+        "polyfit",
     ]
 }

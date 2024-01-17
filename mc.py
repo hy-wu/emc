@@ -109,7 +109,7 @@ class Cubic:
             σhats = np.array([np.sin(φs) * np.cos(θs), np.sin(φs) * np.sin(θs), np.cos(φs)]).T
             σs = 2 * self.r * np.array([np.sin(φs) * np.cos(θs), np.sin(φs) * np.sin(θs), np.cos(φs)]).T
             accepts = np.random.random(self.n_particles)
-            self.cells = [[[[] for _ in range(self.cubic_size)] for _ in range(self.cubic_size)] for _ in range(self.cubic_size)]
+            self.cells = [[[[] for _ in range(self.cubic_size)] for _ in range(self.cubic_size)] for _ in range(self.cubic_size)]  # error: clear too early
             for i, particle in enumerate(particles):
                 x, y, z = particle[:3] = bound(particle[0]), bound(particle[1]), cycle_bound(particle[2])                
                 σ = σs[i]
