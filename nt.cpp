@@ -77,8 +77,9 @@ public:
     // std::vector<std::vector<std::vector<std::vector<torch::Tensor>>>> qks_tensor;
     std::vector<std::vector<std::vector<Cell>>> cells;
     std::vector<std::vector<std::vector<Box>>> boxes;
+    std::vector<std::vector<Particle>> particle_records;
 
-    Cubic(const int n_ptcs, const double cell_l, const int cubic_size, const int box_size, const double r, const double m, const double T, const bool equ=true, const std::vector<double>& vs={}) {
+    Cubic(const int n_ptcs, const double cell_l, const int cubic_size, const int box_size, const double r, const double m, const double T, const bool equ=true, const std::vector<std::vector<double>>& vs={}) {
         /* unit: nm, kg, K, ... */
         k_B = Boltzmann * 1e9;
         this->n_ptcs = n_ptcs;
@@ -117,9 +118,9 @@ public:
                 particle.vy = disN(gen);
                 particle.vz = disN(gen);
             } else {
-                particle.vx = vs[0];
-                particle.vy = vs[1];
-                particle.vz = vs[2];
+                particle.vx = vs[i][0];
+                particle.vy = vs[i][1];
+                particle.vz = vs[i][2];
             }
             ptcs.push_back(particle);
             cells[static_cast<int>(particle.x / cell_l)][static_cast<int>(particle.y / cell_l)][static_cast<int>(particle.z / cell_l)].ptcs.push_back(particle);
@@ -194,7 +195,7 @@ public:
                 v33.zx + v3.z * v3.x, v33.zy + v3.z * v3.y, v33.zz + v3.z * v3.z};
     }
 
-    void run(int n_steps, double dt, bool quiet=false, bool z_loop=true, int sample_step=10) {
+    void run(int n_steps, double dt, bool quiet=false, bool z_loop=true, int sample_step=10, bool record_particles=false) {
         // dt to big (dt > 1e-1) may cause error
         // pks_tensor.resize(n_steps);
         // qks_tensor.resize(n_steps);
@@ -226,6 +227,9 @@ public:
             indicators::option::ShowPercentage{true},
         };
         double xJ, yJ, zJ, nl3, dv2;
+        if (record_particles) {
+            particle_records.resize(n_steps);
+        }
         for (int step = 0; step < n_steps; step++) {
             std::vector<std::vector<double>> σhats(n_ptcs, std::vector<double>(3));
             std::vector<std::vector<double>> σs(n_ptcs, std::vector<double>(3));
@@ -329,6 +333,10 @@ public:
             }
             Ts.push_back(T);
 
+            if (record_particles) {
+                particle_records[step] = ptcs;
+            }
+
             /* velocity, pressure and heat flux */
             if (step % sample_step != 0) {
                 continue;
@@ -394,11 +402,47 @@ public:
                 }
             }
         }
+
+        if (record_particles) {
+            std::ofstream file("particle_records.csv");
+            for (int step = 0; step < n_steps; step += sample_step) {
+                for (int i = 0; i < n_ptcs; ++i) {
+                    file << step << "," << i << "," << particle_records[step][i].x << "," << particle_records[step][i].y << "," << particle_records[step][i].z << "," << particle_records[step][i].vx << "," << particle_records[step][i].vy << "," << particle_records[step][i].vz << "\n";
+                }
+            }
+            file.close();
+        }
+    }
+
+    void output_particles(const std::string& filename) {
+        std::ofstream file(filename);
+        for (int i = 0; i < n_ptcs; i++) {
+            file << ptcs[i].x << "," << ptcs[i].y << "," << ptcs[i].z << "," << ptcs[i].vx << "," << ptcs[i].vy << "," << ptcs[i].vz << "\n";
+        }
+        file.close();
     }
 
 private:
 
 };
+
+std::vector<std::vector<double>> generate_z_flow(double vz0, int n_ptcs=1e5, double m=1e-26, double T0=300, double k_B=1.380649e-23) {
+    std::vector<std::vector<double>> vs(n_ptcs, std::vector<double>(3));
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<double> dis(0, vz0 * sqrt(k_B * T0 / m));
+    std::normal_distribution<> disN(0, sqrt(k_B * 1e9 * T0 / m));
+    for (int i = 0; i < n_ptcs; i++) {
+        vs[i][0] = disN(gen);
+        vs[i][1] = disN(gen);
+        vs[i][2] = dis(gen) + vz0 / 2.0;
+    }
+    return vs;
+}
+
+Cubic default_z_flow(double vz0=10, int para_n_ptcs=1e5, double para_cell_l=2, int para_cubic_size=50, int para_box_size=5, double para_r=1, double para_m=1e-26, double para_T0=300) {
+    return Cubic(para_n_ptcs, para_cell_l, para_cubic_size, para_box_size, para_r, para_m, para_T0, false, generate_z_flow(vz0));
+}
 
 Cubic nt() {  // ROOT entrance
     int num_steps;
