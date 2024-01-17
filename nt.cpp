@@ -195,7 +195,7 @@ public:
                 v33.zx + v3.z * v3.x, v33.zy + v3.z * v3.y, v33.zz + v3.z * v3.z};
     }
 
-    void run(int n_steps, double dt, bool quiet=false, bool z_loop=true, int sample_step=10, bool record_particles=false) {
+    void run(int n_steps, double dt, bool quiet=false, bool z_loop=true, int sample_step=10, bool record_particles=false, bool record_particles_tensor=false) {
         // dt to big (dt > 1e-1) may cause error
         // pks_tensor.resize(n_steps);
         // qks_tensor.resize(n_steps);
@@ -412,6 +412,31 @@ public:
             }
             file.close();
         }
+
+        if (record_particles_tensor) {
+            std::ofstream file("c_out/particle_records_tensor.csv");
+            for (int step = 0; step < n_steps; step += sample_step) {
+                for (int i = 0; i < cubic_box_size; ++i) {
+                    for (int j = 0; j < cubic_box_size; ++j) {
+                        for (int k = 0; k < cubic_box_size; ++k) {
+                            file << ts[step] << "," << i << "," << j << "," << k;
+                            file << "," << us[step][i][j][k].x << "," << us[step][i][j][k].y << "," << us[step][i][j][k].z;
+                            file << "," << pks[step][i][j][k].xx << "," << pks[step][i][j][k].xy << "," << pks[step][i][j][k].xz;
+                            file << "," << pks[step][i][j][k].yx << "," << pks[step][i][j][k].yy << "," << pks[step][i][j][k].yz;
+                            file << "," << pks[step][i][j][k].zx << "," << pks[step][i][j][k].zy << "," << pks[step][i][j][k].zz;
+                            file << "," << qks[step][i][j][k].x << "," << qks[step][i][j][k].y << "," << qks[step][i][j][k].z;
+                            file << "\n";
+                        }
+                    }
+                }
+            }
+            file.close();
+            file.open("c_out/particle_records_Ts.csv");
+            for (int i = 0; i < n_steps; ++i) {
+                file << ts[i] << "," << std::setprecision(15) << Ts[i] << "\n";
+            }
+            file.close();
+        }
     }
 
     void output_particles(const std::string& filename) {
@@ -454,7 +479,6 @@ Cubic nt() {  // ROOT entrance
     Cubic cubic(1e5, 2, 50, 5, 1, 1e-26, 300);
     cubic.run(num_steps, 1e-8, false, true, sampling_step);
     std::ofstream file("data.csv");
-
     for (int step = 0; step < num_steps ; step += sampling_step) {
         for (int i = 0; i < 10; ++i) {
             for (int j = 0; j < 10; ++j) {
