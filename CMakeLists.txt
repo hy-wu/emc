@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.0)
 project(emc)
 
 # Include Torch
-list(APPEND CMAKE_PREFIX_PATH "/home/w/libtorch")
+list(APPEND CMAKE_PREFIX_PATH "/home/w/libtorch" "F:/libtorch")
 find_package(Torch REQUIRED)
 include_directories(${TORCH_INCLUDE_DIRS})
 

@@ -7,6 +7,9 @@
 #include <iostream>
 #include <fstream>
 // #include <torch/torch.h>
+#include "TH1.h"
+#include "TCanvas.h"
+#include "TFile.h"
 
 constexpr double Boltzmann = 1.380649e-23;
 
@@ -64,8 +67,8 @@ public:
     std::vector<Particle> ptcs;
     std::vector<double> ts;
     std::vector<double> Ts;
-    std::vector<double> ωs;
-    std::vector<bool> accepts;
+    std::vector<std::vector<double>> ωs;
+    std::vector<std::vector<bool>> accepts;
     // std::vector<V3> us;
     std::vector<std::vector<std::vector<std::vector<V3>>>> us;
     // std::vector<std::vector<std::vector<std::vector<torch::Tensor>>>> us_tensor;
@@ -195,7 +198,7 @@ public:
                 v33.zx + v3.z * v3.x, v33.zy + v3.z * v3.y, v33.zz + v3.z * v3.z};
     }
 
-    void run(int n_steps, double dt, bool quiet=false, bool z_loop=true, int sample_step=10, bool record_particles=false, bool record_particles_tensor=false) {
+    void run(int n_steps, double dt, bool quiet=false, bool z_loop=true, int sample_step=10, bool record_particles=false, bool record_particles_tensor=false, const std::string filename="") {
         // dt to big (dt > 1e-1) may cause error
         // pks_tensor.resize(n_steps);
         // qks_tensor.resize(n_steps);
@@ -203,6 +206,8 @@ public:
         us.resize(n_steps);
         pks.resize(n_steps);
         qks.resize(n_steps);
+        ωs.resize(n_steps);
+        accepts.resize(n_steps);
         std::random_device rd;
         std::mt19937 gen(rd());
         std::uniform_real_distribution<double> dis(0, 1);
@@ -313,7 +318,8 @@ public:
                     double σhat_i_dot_g_ij = σhats[i][0] * g_ij[0] + σhats[i][1] * g_ij[1] + σhats[i][2] * g_ij[2];
                     if (σhat_i_dot_g_ij > 0) {
                         double ω_ij = 16 * M_PI * pow(r, 2) * σhat_i_dot_g_ij * len_j / cell_volume * dt;
-                        ωs.push_back(ω_ij);
+                        ωs[step].push_back(ω_ij);
+                        accepts[step].push_back(accepteds[i] < ω_ij);
                         if (accepteds[i] < ω_ij) {
                             ptcs[i].vx -= σs[i][0], ptcs[i].vy -= σs[i][1], ptcs[i].vz -= σs[i][2];
                         }
@@ -404,7 +410,7 @@ public:
         }
 
         if (record_particles) {
-            std::ofstream file("particle_records.csv");
+            std::ofstream file("particle_records_" + std::to_string(n_ptcs) + "_" + std::to_string(n_steps) + ".csv");
             for (int step = 0; step < n_steps; step += sample_step) {
                 for (int i = 0; i < n_ptcs; ++i) {
                     file << step << "," << i << "," << particle_records[step][i].x << "," << particle_records[step][i].y << "," << particle_records[step][i].z << "," << particle_records[step][i].vx << "," << particle_records[step][i].vy << "," << particle_records[step][i].vz << "\n";
@@ -414,7 +420,7 @@ public:
         }
 
         if (record_particles_tensor) {
-            std::ofstream file("c_out/particle_records_tensor.csv");
+            std::ofstream file("c_out/particle_records_tensor_" + filename + ".csv");
             for (int step = 0; step < n_steps; step += sample_step) {
                 for (int i = 0; i < cubic_box_size; ++i) {
                     for (int j = 0; j < cubic_box_size; ++j) {
@@ -431,9 +437,30 @@ public:
                 }
             }
             file.close();
-            file.open("c_out/particle_records_Ts.csv");
+            file.open("c_out/particle_records_Ts_" + filename + ".csv");
             for (int i = 0; i < n_steps; ++i) {
                 file << ts[i] << "," << std::setprecision(15) << Ts[i] << "\n";
+            }
+            file.close();
+            // Create a one-dimensional histogram with 100 bins between 0 and 100
+            TH1F *h = new TH1F("acceptance", "Histogram", 1000, 0, 2);
+            for (int i = 0; i < n_steps; ++i) {
+                for (int j = 0; j < ωs[i].size(); ++j) {
+                    h->Fill(ωs[i][j]);
+                }
+            }
+            TCanvas *c = new TCanvas("c", "Canvas", 800, 600);
+            h->Draw();
+            c->SaveAs((filename + "histogram.png").c_str());
+            file.open("c_out/particle_records_accepts_" + filename + ".csv");
+            long long int n_accepts = 0;
+            for (int i = 0; i < n_steps; ++i) {
+                n_accepts = 0;
+                file << ts[i] << "," << accepts[i].size() << ",";
+                for (int j = 0; j < accepts[i].size(); ++j) {
+                    n_accepts += accepts[i][j];
+                }
+                file << n_accepts << "\n";
             }
             file.close();
         }
@@ -472,12 +499,15 @@ Cubic default_z_flow(double vz0=10, int para_n_ptcs=1e5, double para_cell_l=2, i
 Cubic nt() {  // ROOT entrance
     int num_steps;
     int sampling_step;
+    std::string filename;
     std::cout << "num_steps: ";
     std::cin >> num_steps;
     std::cout << "sampling_step: ";
     std::cin >> sampling_step;
+    std::cout << "filename: ";
+    std::cin >> filename;
     Cubic cubic(1e5, 2, 50, 5, 1, 1e-26, 300);
-    cubic.run(num_steps, 1e-8, false, true, sampling_step);
+    cubic.run(num_steps, 1e-9, false, true, sampling_step, false, true, filename);
     std::ofstream file("data.csv");
     for (int step = 0; step < num_steps ; step += sampling_step) {
         for (int i = 0; i < 10; ++i) {
@@ -498,6 +528,25 @@ Cubic nt() {  // ROOT entrance
     file.open("data_Ts.csv");
     for (int i = 0; i < num_steps; ++i) {
         file << cubic.ts[i] << "," << std::setprecision(15) << cubic.Ts[i] << "\n";
+    }
+    file.close();
+    TH1F *h = new TH1F("acceptance", "Histogram", 1000, 0, 2);
+    file.open("data_ωs.csv");
+    for (int i = 0; i < num_steps; ++i) {
+        file << cubic.ts[i] << "," << cubic.ωs[i].size() << ",";
+        for (int j = 0; j < cubic.ωs[i].size(); ++j) {
+            file << cubic.ωs[i][j] << "," << cubic.accepts[i][j] << ",";
+        }
+        file << "\n";
+    }
+    file.close();
+    file.open("data_accepts.csv");
+    for (int i = 0; i < num_steps; ++i) {
+        file << cubic.ts[i] << "," << cubic.accepts[i].size() << ",";
+        for (int j = 0; j < cubic.accepts[i].size(); ++j) {
+            file << cubic.accepts[i][j] << ",";
+        }
+        file << "\n";
     }
     file.close();
     return cubic;
