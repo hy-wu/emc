@@ -18,5 +18,10 @@
         "σhat",
         "σhats",
         "polyfit",
-    ]
+    ],
+    "C_Cpp.default.compilerPath": "/usr/bin/g++",
+    "files.associations": {
+        "*.json": "json",
+        "ostream": "cpp"
+    }
 }

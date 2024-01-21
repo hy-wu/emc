@@ -10,6 +10,11 @@
 #include "TH1.h"
 #include "TCanvas.h"
 #include "TFile.h"
+// #include <math.h>
+// #include <Math/Math.h>
+// #include <TH1.h>
+// #include <TCanvas.h>
+// #include <TFile.h>
 
 constexpr double Boltzmann = 1.380649e-23;
 
@@ -69,15 +74,10 @@ public:
     std::vector<double> Ts;
     std::vector<std::vector<double>> ωs;
     std::vector<std::vector<bool>> accepts;
-    // std::vector<V3> us;
     std::vector<std::vector<std::vector<std::vector<V3>>>> us;
-    // std::vector<std::vector<std::vector<std::vector<torch::Tensor>>>> us_tensor;
-    // std::vector<V33> pks;
     std::vector<std::vector<std::vector<std::vector<V33>>>> pks;
-    // std::vector<std::vector<std::vector<std::vector<torch::Tensor>>>> pks_tensor;
-    // std::vector<V3> qks;
     std::vector<std::vector<std::vector<std::vector<V3>>>> qks;
-    // std::vector<std::vector<std::vector<std::vector<torch::Tensor>>>> qks_tensor;
+    std::vector<std::vector<std::vector<std::vector<double>>>> temps;
     std::vector<std::vector<std::vector<Cell>>> cells;
     std::vector<std::vector<std::vector<Box>>> boxes;
     std::vector<std::vector<Particle>> particle_records;
@@ -206,6 +206,7 @@ public:
         us.resize(n_steps);
         pks.resize(n_steps);
         qks.resize(n_steps);
+        temps.resize(n_steps);
         ωs.resize(n_steps);
         accepts.resize(n_steps);
         std::random_device rd;
@@ -361,17 +362,21 @@ public:
             V33 pk_mean = {0, 0, 0, 0, 0, 0, 0, 0, 0};
             V3 qk_mean = {0, 0, 0};
             V3 dv = {0, 0, 0};
+            double temperature = 0;
             us[step].resize(cubic_box_size);
             pks[step].resize(cubic_box_size);
             qks[step].resize(cubic_box_size);
+            temps[step].resize(cubic_box_size);
             for (int i = 0; i < cubic_box_size; i++) {
                 us[step][i].resize(cubic_box_size);
                 pks[step][i].resize(cubic_box_size);
                 qks[step][i].resize(cubic_box_size);
+                temps[step][i].resize(cubic_box_size);
                 for (int j = 0; j < cubic_box_size; j++) {
                     us[step][i][j].resize(cubic_box_size);
                     pks[step][i][j].resize(cubic_box_size);
                     qks[step][i][j].resize(cubic_box_size);
+                    temps[step][i][j].resize(cubic_box_size);
                     for (int k = 0; k < cubic_box_size; k++) {
                         int len = static_cast<int>(boxes[i][j][k].ptcs.size());
                         V3 u = {0, 0, 0};
@@ -381,6 +386,7 @@ public:
                                 u.x += boxes[i][j][k].ptcs[l].vx;
                                 u.y += boxes[i][j][k].ptcs[l].vy;
                                 u.z += boxes[i][j][k].ptcs[l].vz;
+                                temperature += m * (pow(boxes[i][j][k].ptcs[l].vx, 2) + pow(boxes[i][j][k].ptcs[l].vy, 2) + pow(boxes[i][j][k].ptcs[l].vz, 2)) / (3 * k_B * n_ptcs);
                             }
                             u.x /= len;
                             u.y /= len;
@@ -403,6 +409,7 @@ public:
                             us[step][i][j][k] = u;
                             pks[step][i][j][k] = pk_mean;
                             qks[step][i][j][k] = qk_mean;
+                            temps[step][i][j][k] = temperature / len;
                         }
                     }
                 }
@@ -431,6 +438,7 @@ public:
                             file << "," << pks[step][i][j][k].yx << "," << pks[step][i][j][k].yy << "," << pks[step][i][j][k].yz;
                             file << "," << pks[step][i][j][k].zx << "," << pks[step][i][j][k].zy << "," << pks[step][i][j][k].zz;
                             file << "," << qks[step][i][j][k].x << "," << qks[step][i][j][k].y << "," << qks[step][i][j][k].z;
+                            file << "," << temps[step][i][j][k] << "\n";
                             file << "\n";
                         }
                     }
@@ -553,34 +561,101 @@ Cubic nt() {  // ROOT entrance
 }
 
 int main() {  // g++ entrance
-    int num_steps;
-    constexpr int sampling_step = 10;
-    std::cout << "num_steps: ";
-    std::cin >> num_steps;
-    Cubic cubic(1e5, 2, 50, 5, 1, 1e-26, 300);
-    cubic.run(num_steps, 1e-8, false, true, sampling_step);
-    std::ofstream file("data.csv");
-
-    for (int step = 0; step < num_steps ; step += sampling_step) {
-        for (int i = 0; i < 10; ++i) {
-            for (int j = 0; j < 10; ++j) {
-                for (int k = 0; k < 10; ++k) {
-                    file << step << "," << i << "," << j << "," << k;
-                    file << "," << cubic.us[step][i][j][k].x << "," << cubic.us[step][i][j][k].y << "," << cubic.us[step][i][j][k].z;
-                    file << "," << cubic.pks[step][i][j][k].xx << "," << cubic.pks[step][i][j][k].xy << "," << cubic.pks[step][i][j][k].xz;
-                    file << "," << cubic.pks[step][i][j][k].yx << "," << cubic.pks[step][i][j][k].yy << "," << cubic.pks[step][i][j][k].yz;
-                    file << "," << cubic.pks[step][i][j][k].zx << "," << cubic.pks[step][i][j][k].zy << "," << cubic.pks[step][i][j][k].zz;
-                    file << "," << cubic.qks[step][i][j][k].x << "," << cubic.qks[step][i][j][k].y << "," << cubic.qks[step][i][j][k].z;
-                    file << "\n";
-                }
-            }
+    double temp;
+    int index_to_change = -1;
+    int num_particles = 1e5;
+    double cell_length = 2;
+    int cells_per_side = 50;
+    int cells_per_box = 5;
+    int boxs_per_side = cells_per_side / cells_per_box;
+    double r = 1;
+    double m = 1e-26;
+    double T0 = 300;
+    int num_steps = 1e3;
+    int sampling_step = 1;
+    double dt = 1e-9;
+    std::string filename = "data";
+    std::cout << "initialize a cubic, default parameters are: " << std::endl;
+    std::cout << "1. num_particles: " << num_particles << std::endl;
+    std::cout << "2. cell_length: " << cell_length << std::endl;
+    std::cout << "3. cells_per_side: " << cells_per_side << std::endl;
+    std::cout << "4. cells_per_box: " << cells_per_box << std::endl;
+    std::cout << "5. r: " << r << std::endl;
+    std::cout << "6. m: " << m << std::endl;
+    std::cout << "7. T0: " << T0 << std::endl;
+    std::cout << "8. num_steps: " << num_steps << std::endl;
+    std::cout << "9. sampling_step: " << sampling_step << std::endl;
+    std::cout << "10. dt: " << dt << std::endl;
+    std::cout << "11. filename: " << filename << std::endl;
+    std::cout << "nσ^3 = " << num_particles / pow(cells_per_side, 3) * pow((2 * r / cell_length), 3) << std::endl;
+    while (index_to_change != 0) {
+        std::cout << "Enter the index of the parameter you want to change (0 to exit): ";
+        std::cin >> index_to_change;
+        switch (index_to_change) {
+            case 1:
+                std::cout << "1. num_particles: ";
+                std::cin >> temp;
+                num_particles = static_cast<int>(temp);
+                break;
+            case 2:
+                std::cout << "2. cell_length: ";
+                std::cin >> cell_length;
+                break;
+            case 3:
+                std::cout << "3. cells_per_side: ";
+                std::cin >> cells_per_side;
+                break;
+            case 4:
+                std::cout << "4. cells_per_box: ";
+                std::cin >> cells_per_box;
+                break;
+            case 5:
+                std::cout << "5. r: ";
+                std::cin >> r;
+                break;
+            case 6:
+                std::cout << "6. m: ";
+                std::cin >> m;
+                break;
+            case 7:
+                std::cout << "7. T0: ";
+                std::cin >> T0;
+                break;
+            case 8:
+                std::cout << "8. num_steps: ";
+                std::cin >> temp;
+                num_steps = static_cast<int>(temp);
+                break;
+            case 9:
+                std::cout << "9. sampling_step: ";
+                std::cin >> sampling_step;
+                break;
+            case 10:
+                std::cout << "10. dt: ";
+                std::cin >> dt;
+                break;
+            case 11:
+                std::cout << "11. filename: ";
+                std::cin >> filename;
+                break;
+            default:
+                std::cout << "invalid index" << std::endl;
+                break;
         }
+        std::cout << "1. num_particles: " << num_particles << std::endl;
+        std::cout << "2. cell_length: " << cell_length << std::endl;
+        std::cout << "3. cells_per_side: " << cells_per_side << std::endl;
+        std::cout << "4. cells_per_box: " << cells_per_box << std::endl;
+        std::cout << "5. r: " << r << std::endl;
+        std::cout << "6. m: " << m << std::endl;
+        std::cout << "7. T0: " << T0 << std::endl;
+        std::cout << "8. num_steps: " << num_steps << std::endl;
+        std::cout << "9. sampling_step: " << sampling_step << std::endl;
+        std::cout << "10. dt: " << dt << std::endl;
+        std::cout << "11. filename: " << filename << std::endl;
+        std::cout << "nσ^3 = " << num_particles / pow(cells_per_side, 3) * pow((2 * r / cell_length), 3) << std::endl;
     }
-    file.close();
-    file.open("data_Ts.csv");
-    for (int i = 0; i < num_steps; ++i) {
-        file << cubic.ts[i] << "," << cubic.Ts[i] << "\n";
-    }
-    file.close();
+    Cubic cubic(num_particles, cell_length, cells_per_side, cells_per_box, r, m, T0);
+    cubic.run(num_steps, dt, false, true, sampling_step, false, true, filename);
     return 0;
 }
