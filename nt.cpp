@@ -381,18 +381,19 @@ public:
                         int len = static_cast<int>(boxes[i][j][k].ptcs.size());
                         V3 u = {0, 0, 0};
                         dv = {0, 0, 0};
+                        pk_mean = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+                        qk_mean = {0, 0, 0};                            
+                        temperature = 0;
                         if (len > 0) {
                             for (int l = 0; l < len; l++) {
                                 u.x += boxes[i][j][k].ptcs[l].vx;
                                 u.y += boxes[i][j][k].ptcs[l].vy;
                                 u.z += boxes[i][j][k].ptcs[l].vz;
-                                temperature += m * (pow(boxes[i][j][k].ptcs[l].vx, 2) + pow(boxes[i][j][k].ptcs[l].vy, 2) + pow(boxes[i][j][k].ptcs[l].vz, 2)) / (3 * k_B * n_ptcs);
+                                temperature += m * (pow(boxes[i][j][k].ptcs[l].vx, 2) + pow(boxes[i][j][k].ptcs[l].vy, 2) + pow(boxes[i][j][k].ptcs[l].vz, 2)) / (3 * k_B * len);
                             }
                             u.x /= len;
                             u.y /= len;
                             u.z /= len;
-                            pk_mean = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-                            qk_mean = {0, 0, 0};
                             for (int l = 0; l < len; l++) {
                                 dv.x = boxes[i][j][k].ptcs[l].vx - u.x;
                                 dv.y = boxes[i][j][k].ptcs[l].vy - u.y;
@@ -409,7 +410,7 @@ public:
                             us[step][i][j][k] = u;
                             pks[step][i][j][k] = pk_mean;
                             qks[step][i][j][k] = qk_mean;
-                            temps[step][i][j][k] = temperature / len;
+                            temps[step][i][j][k] = temperature;
                         }
                     }
                 }
@@ -574,24 +575,33 @@ int main() {  // g++ entrance
     int num_steps = 1e3;
     int sampling_step = 1;
     double dt = 1e-9;
+    bool confirm = false;
     std::string filename = "data";
+    char temp_confirm;
     std::cout << "initialize a cubic, default parameters are: " << std::endl;
-    std::cout << "1. num_particles: " << num_particles << std::endl;
-    std::cout << "2. cell_length: " << cell_length << std::endl;
-    std::cout << "3. cells_per_side: " << cells_per_side << std::endl;
-    std::cout << "4. cells_per_box: " << cells_per_box << std::endl;
-    std::cout << "5. r: " << r << std::endl;
-    std::cout << "6. m: " << m << std::endl;
-    std::cout << "7. T0: " << T0 << std::endl;
-    std::cout << "8. num_steps: " << num_steps << std::endl;
-    std::cout << "9. sampling_step: " << sampling_step << std::endl;
-    std::cout << "10. dt: " << dt << std::endl;
-    std::cout << "11. filename: " << filename << std::endl;
-    std::cout << "nσ^3 = " << num_particles / pow(cells_per_side, 3) * pow((2 * r / cell_length), 3) << std::endl;
-    while (index_to_change != 0) {
+    while (! confirm) {
+        std::cout << "1. num_particles: " << num_particles << std::endl;
+        std::cout << "2. cell_length: " << cell_length << std::endl;
+        std::cout << "3. cells_per_side: " << cells_per_side << std::endl;
+        std::cout << "4. cells_per_box: " << cells_per_box << std::endl;
+        std::cout << "5. r: " << r << std::endl;
+        std::cout << "6. m: " << m << std::endl;
+        std::cout << "7. T0: " << T0 << std::endl;
+        std::cout << "8. num_steps: " << num_steps << std::endl;
+        std::cout << "9. sampling_step: " << sampling_step << std::endl;
+        std::cout << "10. dt: " << dt << std::endl;
+        std::cout << "11. filename: " << filename << std::endl;
+        std::cout << "nσ^3 = " << num_particles / pow(cells_per_side, 3) * pow((2 * r / cell_length), 3) << std::endl;
         std::cout << "Enter the index of the parameter you want to change (0 to exit): ";
         std::cin >> index_to_change;
         switch (index_to_change) {
+            case 0:
+                std::cout << "run? (y/n): ";
+                std::cin >> temp_confirm;
+                if (temp_confirm == 'y') {
+                    confirm = true;
+                }
+                break;
             case 1:
                 std::cout << "1. num_particles: ";
                 std::cin >> temp;
@@ -642,18 +652,6 @@ int main() {  // g++ entrance
                 std::cout << "invalid index" << std::endl;
                 break;
         }
-        std::cout << "1. num_particles: " << num_particles << std::endl;
-        std::cout << "2. cell_length: " << cell_length << std::endl;
-        std::cout << "3. cells_per_side: " << cells_per_side << std::endl;
-        std::cout << "4. cells_per_box: " << cells_per_box << std::endl;
-        std::cout << "5. r: " << r << std::endl;
-        std::cout << "6. m: " << m << std::endl;
-        std::cout << "7. T0: " << T0 << std::endl;
-        std::cout << "8. num_steps: " << num_steps << std::endl;
-        std::cout << "9. sampling_step: " << sampling_step << std::endl;
-        std::cout << "10. dt: " << dt << std::endl;
-        std::cout << "11. filename: " << filename << std::endl;
-        std::cout << "nσ^3 = " << num_particles / pow(cells_per_side, 3) * pow((2 * r / cell_length), 3) << std::endl;
     }
     Cubic cubic(num_particles, cell_length, cells_per_side, cells_per_box, r, m, T0);
     cubic.run(num_steps, dt, false, true, sampling_step, false, true, filename);
